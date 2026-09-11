@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encuesta de Opinión - Prueba QA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .survey-container {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        .question-block {
+            margin-bottom: 1.5rem;
+            display: none; /* Oculto por defecto, se maneja con JS */
+        }
+        .question-block.active {
+            display: block;
+        }
+        .quota-banner {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        .alert {
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            display: none;
+        }
+        .alert-danger { background: #ffebee; color: #c62828; display: block;}
+        .alert-success { background: #e8f5e9; color: #2e7d32; display: block;}
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="survey-container">
+    <h2>Estudio Demográfico TI</h2>
+    
+    <!-- Banner de cuotas -->
+    <div class="quota-banner">
+        <strong>Estado de Cuota:</strong> Ingenieros de Sistemas (<span id="quota-count">0</span>/3)
+    </div>
+
+    <form id="surveyForm">
+        
+        <!-- PREGUNTA 1: Filtro de Edad (Skip Logic) -->
+        <div class="question-block active" id="q-age">
+            <label><strong>1. ¿Cuál es su edad?</strong></label><br>
+            <input type="radio" name="age" value="under18" id="age1"> <label for="age1">Menor de 18 años</label><br>
+            <input type="radio" name="age" value="18-25" id="age2"> <label for="age2">18 a 25 años</label><br>
+            <input type="radio" name="age" value="26-40" id="age3"> <label for="age3">26 a 40 años</label><br>
+        </div>
+
+        <!-- PREGUNTA 2: Lógica Condicional Básica -->
+        <div class="question-block" id="q-employment">
+            <label><strong>2. ¿Se encuentra laborando actualmente?</strong></label><br>
+            <input type="radio" name="employment" value="yes" id="emp-yes"> <label for="emp-yes">Sí</label><br>
+            <input type="radio" name="employment" value="no" id="emp-no"> <label for="emp-no">No</label><br>
+        </div>
+
+        <!-- PREGUNTA 3: Segmentación y Cuotas -->
+        <div class="question-block" id="q-profession">
+            <label><strong>3. ¿En qué área se desempeña?</strong></label><br>
+            <select id="professionSelect" name="profession">
+                <option value="">-- Seleccione una opción --</option>
+                <option value="IT">Ingeniería / Tecnología (IT)</option>
+                <option value="Health">Salud</option>
+                <option value="Education">Educación</option>
+                <option value="Other">Otro</option>
+            </select>
+        </div>
+
+        <button type="submit" id="submitBtn" class="question-block">Enviar Respuestas</button>
+    </form>
+
+    <!-- Mensajes de finalización -->
+    <div id="message-container"></div>
+
+</div>
+
+<script>
+    // --- VARIABLES DE ESTADO Y CUOTAS ---
+    const MAX_IT_QUOTA = 3; 
+    let currentItQuota = 0; 
+
+    // --- ELEMENTOS DEL DOM ---
+    const form = document.getElementById('surveyForm');
+    const qAgeRadios = document.getElementsByName('age');
+    const qEmpRadios = document.getElementsByName('employment');
+    const qEmployment = document.getElementById('q-employment');
+    const qProfession = document.getElementById('q-profession');
+    const submitBtn = document.getElementById('submitBtn');
+    const messageContainer = document.getElementById('message-container');
+    const quotaCountDisplay = document.getElementById('quota-count');
+    const professionSelect = document.getElementById('professionSelect');
+
+    // --- EVENTOS (ESCUCHADORES) ---
+
+    // 1. Lógica de Saltos (Skip Logic) por Edad
+    qAgeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'under18') {
+                // Descalificación inmediata
+                qEmployment.classList.remove('active');
+                qProfession.classList.remove('active');
+                submitBtn.classList.remove('active');
+                showMessage('Lo sentimos, este estudio es solo para mayores de 18 años. (Terminate)', 'alert-danger');
+            } else {
+                // Avanza al siguiente flujo
+                messageContainer.innerHTML = '';
+                qEmployment.classList.add('active');
+                
+                // Reiniciar selecciones siguientes si cambia de opinión
+                document.getElementById('emp-no').checked = false;
+                document.getElementById('emp-yes').checked = false;
+                qProfession.classList.remove('active');
+                submitBtn.classList.remove('active');
+            }
+        });
+    });
+
+    // 2. Preguntas dinámicas basadas en empleo
+    qEmpRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'yes') {
+                qProfession.classList.add('active');
+                submitBtn.classList.add('active');
+            } else {
+                qProfession.classList.remove('active');
+                professionSelect.value = ""; // Limpiar selección
+                submitBtn.classList.add('active');
+            }
+        });
+    });
+
+    // --- MANEJO DEL ENVÍO Y CUOTAS (Quota Management) ---
+    form.addEventListener('submit', function(e) {
+        e.preventDefault(); // Evita recargar la página
+
+        const isEmployed = document.getElementById('emp-yes').checked;
+        const profession = professionSelect.value;
+
+        // Validar cuota si es de IT
+        if (isEmployed && profession === 'IT') {
+            if (currentItQuota >= MAX_IT_QUOTA) {
+                showMessage('Lo sentimos, la cuota para el grupo "Ingeniería / Tecnología" ya está completa (Overquota).', 'alert-danger');
+                return;
+            }
+            // Incrementar cuota simulada
+            currentItQuota++;
+            quotaCountDisplay.innerText = currentItQuota;
+        }
+
+        // Simular envío exitoso
+        showMessage('¡Encuesta completada con éxito! Datos guardados.', 'alert-success');
+        
+        // Reiniciar formulario para probar de nuevo
+        form.reset();
+        qEmployment.classList.remove('active');
+        qProfession.classList.remove('active');
+        submitBtn.classList.remove('active');
+
+        // Validar si la cuota global se llenó para deshabilitar esa opción
+        if (currentItQuota >= MAX_IT_QUOTA) {
+            professionSelect.querySelector('option[value="IT"]').disabled = true;
+            professionSelect.querySelector('option[value="IT"]').text += " (Cuota llena)";
+        }
+    });
+
+    // Función auxiliar para mostrar mensajes
+    function showMessage(text, className) {
+        messageContainer.innerHTML = `<div class="alert ${className}">${text}</div>`;
+    }
+</script>
+
+</body>
+</html>
